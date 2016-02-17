@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+spawn /root/clientSetup4SMT.sh --host <%= @host.params['kt_smt_server'] %> --fingerprint "<%= @host.params['kt_smt_fingerprint'] %>" --yes --regcert http://<%= @host.params['kt_smt_server'] %>/smt.crt
+set done 0
+while {$done == 0} {
+expect {
+"Do you want to reject the key, trust temporarily, or trust always?" { send -- "a\r" }
+"Continuing might be risky. Continue anyway?" { send -- "yes\r" }
+eof { set done 1 }
+}
+}
