@@ -299,13 +299,20 @@ echo "Informing Foreman that we are built"
 /usr/bin/curl -o /dev/null -k '<%= foreman_url %>'
 
 # remove the provisioning iface information from the system
+<% iface_removal = "yes" -%>
 <% @host.interfaces.each do |i| -%>
 <% if i.provision -%>
 real_prov=`ip -o link | grep <%= i.mac %> | awk '{print $2;}' | sed s/://`
 mac_prov="<%= i.mac %>"
+<% prov_mac = i.mac -%>
+<% end -%>
+<% if i.primary and i.mac == prov_mac -%>
+<% iface_removal = "no" -%>
 <% end -%>
 <% end -%>
 
+<% if iface_removal == "yes" -%>
+# BEGIN removal prov iface
 sed -r "s/(STARTMODE=).*/\1\'off\'/g" /etc/sysconfig/network/ifcfg-${real_prov}
 ifdown ${real_prov}
 # restore resolv.conf
@@ -317,6 +324,10 @@ date
 rm -f /etc/sysconfig/network/ifcfg-${real_prov}
 sed -i "s/SUBSYSTEM.*${mac_prov}.*/# Provisioning iface with MAC ${mac_prov} removed by Katello postinstall script/" /etc/udev/rules.d/70-persistent-net.rules
 <% end -%>
+
+# END removal prov iface
+<% end -%>
+
 
 # run puppet agent once more after build finished to be able to browse facts from Katello web UI
 <% if puppet_enabled %>
