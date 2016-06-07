@@ -1,0 +1,220 @@
+<%#
+kind: provision
+name: KS_WN_Kickstart
+oses:
+- CentOS 6
+- CentOS 7
+- RedHat 6
+- RedHat 7
+%>
+# @host:                        <%= @host %>
+# IPs:                          <% @host.interfaces.each do |i| %> key is <%= i.ip %> <% end %>
+# @host.operatingsystem.name:   <%= @host.operatingsystem.name %>
+# @host.operatingsystem.family: <%= @host.operatingsystem.family %>
+# @host.hostgroup:              <%= @host.hostgroup %>
+# @host.location:               <%= @host.location %>
+# @provisioning_type:           <%= @provisioning_type %>
+# @temlpate_name:               <%= @template_name %>
+# @rhsm_organization_label:     <%= @host.rhsm_organization_label %>
+# @host.params[]:               <% @host.params.each do |i| %><%= i %>, <% end %>
+# @dynamic:                     <%= @dynamic %>
+#       true if the parition table being used is a %pre script (has #Dynamic as the first line of the table)
+#==============================
+# Generated templates
+# PXELinux:     <%= foreman_url("PXELinux") %>
+# iPXE:         <%= foreman_url("iPXE") %>
+# provision:    <%= foreman_url("provision") %>
+# finish:       <%= foreman_url("finish") %>
+# user_data:    <%= foreman_url("user_data") %>
+# built:        <%= foreman_url %> (URL for foreman to learn built is done)
+# medium_uri:   <%= @host.os.medium_uri(@host) %>
+#==============================
+<%
+  rhel_compatible = @host.operatingsystem.family == 'Redhat'
+  os_major = @host.operatingsystem.major.to_i
+  # safemode renderer does not support unary negation
+  pm_set = @host.puppetmaster.empty? ? false : true
+  puppet_enabled = pm_set || @host.params['force-puppet']
+  grub_pass = @host.params['kt_grubpass'].empty? ? "" : "--iscrypted --password=" + @host.params['kt_grubpass']
+  # if it is VirtualMachine, we power it off and run script to remove virtual interface used for provisionig
+  hg = @host.hostgroup.to_s
+  hg["/VM"] || hg["/vm"] ? vm = true : vm = false
+%>
+
+text
+install
+<%= @mediapath %>
+<% if @host.operatingsystem.name == 'CentOS' -%>
+# repo Updates + subs-mngr
+<% end -%>
+lang en_US.UTF-8
+selinux --enforcing
+keyboard us
+skipx
+
+<% subnet = @host.subnet -%>
+<% if subnet.respond_to?(:dhcp_boot_mode?) -%>
+<% dhcp = subnet.dhcp_boot_mode? && !@static -%>
+<% else -%>
+<% dhcp = !@static -%>
+<% end -%>
+
+#network --bootproto <%= dhcp ? 'dhcp' : "static --ip=#{@host.ip} --netmask=#{subnet.mask} --gateway=#{subnet.gateway} --nameserver=#{[subnet.dns_primary, subnet.dns_secondary].select(&:present?).join(',')}" %> --device=<%= @host.mac -%> --hostname <%= @host %> --noipv6
+network --bootproto <%= dhcp ? 'dhcp' : "static --ip=#{@host.ip} --netmask=#{subnet.mask}" %> --device=<%= @host.mac -%> --hostname <%= @host %> --noipv6
+
+rootpw --iscrypted <%= root_pass %>
+firewall --disabled
+authconfig --useshadow --passalgo=sha256 --kickstart
+timezone --utc <%= @host.params['time-zone'] || 'UTC' %>
+
+bootloader --location=mbr --append="audit=1" <%= grub_pass %>
+
+<% if @dynamic -%>
+%include /tmp/diskpart.cfg
+<% else -%>
+<%= @host.diskLayout %>
+<% end -%>
+
+services --enabled=postfix,network,ntpd
+services --disabled=iptables,ip6tables,rhnsd
+
+<% if vm -%>
+# if it is VirtualMachine, we power it off and run script to remove virtual interface used for provisionig
+poweroff
+<% else -%>
+reboot
+<% end -%>
+
+%packages --nobase
+@Core --nodefaults
+openssh-clients
+openssh-server
+wget
+mc
+sysstat
+audit
+vim-enhanced
+bind-utils
+mailx
+nc
+rsync
+man
+man-pages
+yum
+ntp
+authconfig 
+%end
+
+<% if @dynamic -%>
+%pre
+<%= @host.diskLayout %>
+%end
+<% end -%>
+
+%post --nochroot
+exec < /dev/tty3 > /dev/tty3
+#changing to VT 3 so that we can see whats going on....
+/usr/bin/chvt 3
+(
+cp -va /etc/resolv.conf /mnt/sysimage/etc/resolv.conf
+/usr/bin/chvt 1
+) 2>&1 | tee /mnt/sysimage/root/install.postnochroot.log
+%end
+
+
+%post
+logger "Starting anaconda <%= @host %> postinstall"
+exec < /dev/tty3 > /dev/tty3
+#changing to VT 3 so that we can see whats going on....
+/usr/bin/chvt 3
+(
+
+
+
+# === Network setup ===
+<% if subnet.respond_to?(:dhcp_boot_mode?) -%>
+<%= snippet 'kickstart_networking_setup' %>
+<% end -%>
+
+echo "updating system time"
+/usr/sbin/ntpdate -sub <%= @host.params['ntp-server'] || @host.subnet.gateway %>
+/usr/sbin/hwclock --systohc
+
+
+
+# === snippet - KS_WN_subscription_manager_registration ===
+<%= snippet "KS_WN_subscription_manager_registration" %>
+echo "Updating system"
+yum -t -y -e 0 update
+
+# === Puppet & MCollective setup ===
+echo "Setting up puppet and mcollective"
+<% if puppet_enabled %>
+<%= snippet "WN_puppet_mco_setup" %>
+<% end -%>
+
+<% if vm -%>
+# === Install vmware-tools in case of VM ===
+echo "Installing vmware-tools"
+yum -t -y -e 0 install vmware-tools-esx-nox
+<% end -%>
+
+echo "Modifying fstab - CIS 4.3.22 - /var/tmp"
+# CIS 4.3.22 - /var/tmp
+echo "/tmp                    /var/tmp                none    bind            0 0" >> /etc/fstab
+echo "tmpfs                   /dev/shm                tmpfs   defaults,nodev,nosuid,noexec        0 0" >> /etc/fstab
+mount /var/tmp
+
+echo "Running environment/customer specific postinstallation script"
+# === Custom postinstallation script ===
+# This is hardcoded here and it is meant to be a wrapper for anything needed to be done after deployment
+#curl http://<%= @host.puppetmaster %>/pub/tools/katello_postinstall.sh > /root/katello_postinstall.sh
+#[ -e /root/katello_postinstall.sh ] && chmod +x /root/katello_postinstall.sh
+#[ -x /root/katello_postinstall.sh ] && /root/katello_postinstall.sh
+#[ -e /root/katello_postinstall.sh ] && rm -f /root/katello_postinstall.sh
+<%= snippet "WN_external_postinstall" %>
+
+# this run also configures/hardens the server
+<% if puppet_enabled %>
+/usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
+<% end -%>
+
+
+<% if @provisioning_type == nil || @provisioning_type == 'host' -%>
+# Inform the build system that we are done. We have to shut down all interfaces except for provision one, because of proxy is accessible only in provisioning network.
+##
+<% @host.interfaces.each do |i| -%>
+<% if i.provision -%>
+real_prov=`ip -o link | grep <%= i.mac %> | awk '{print $2;}' | sed s/://`
+<% end -%>
+<% end -%>
+for i in `ifconfig -a | sed 's/[ \t].*//;/^\(lo\|\)$/d'`; do ifconfig $i down; done
+ifconfig $real_prov up
+##
+echo "Informing Foreman that we are built"
+wget -q -O /dev/null --no-check-certificate <%= foreman_url %>
+
+# run puppet agent once more after build finished to be able to browse facts from Katello web UI
+# this run also configures/hardens the server
+<% if puppet_enabled %>
+ifconfig $real_prov down
+for i in `ifconfig -a | sed 's/[ \t].*//;/^\(lo\|\)$/d' | grep -v $real_prov`; do /etc/sysconfig/network-scripts/ifup $i; done
+/usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
+<% end -%>
+
+# clean up resolv.conf and disable starting provisionig iface
+echo -n "" > /etc/resolv.conf
+
+<% if vm -%>
+## remove the provisioninf iface information from the system
+## prov iface will be also deleted from VM itself and from foreman (right now manually, later on via script hookend to foreman)
+#/bin/sed -i "s/^ONBOOT.*/ONBOOT=no/" /etc/sysconfig/network-scripts/ifcfg-${real_prov}
+rm -f /etc/sysconfig/network-scripts/ifcfg-${real_prov}
+rm -f /etc/udev/rules.d/70-persistent-net.rules
+<% end -%>
+
+<% end -%>
+) 2>&1 | tee /root/install.post.log
+exit 0
+
+%end
