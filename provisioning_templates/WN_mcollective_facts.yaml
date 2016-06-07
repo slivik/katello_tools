@@ -1,0 +1,23 @@
+<%#
+kind: snippet
+name: /etc/facter/facts.d/facts.yaml
+desc: Part of Puppet & MCollective setup (KS_WN_puppet_mco_setup)
+oses:
+    - CentOS 6
+    - CentOS 7
+    - RHEL 6
+    - RHEL 7
+    - SLES 11 SP 3
+%>
+fqdn: <%= @host.name %>
+domain: <%= @host.domain %>
+deployment_status: <%= @host.environment.to_s.gsub(/linux_/, "") %>
+patch_group: unknown
+foreman_organization: <%= @host.params['kt_org'] %>
+foreman_location: <%= @host.location %>
+environment: <%= @host.environment %>
+<%- if @host.params['kt_puppet_server_role'].to_s == "" -%>
+server_role: default
+<%- else -%>
+server_role: <%= @host.params['kt_puppet_server_role'] %>
+<%- end -%>
