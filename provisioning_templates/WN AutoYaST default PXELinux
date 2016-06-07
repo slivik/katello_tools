@@ -1,0 +1,9 @@
+<%#
+kind: PXELinux
+name: AutoYaST default PXELinux
+%>
+DEFAULT linux
+
+LABEL linux
+    KERNEL <%= @kernel %>
+    APPEND initrd=<%= @initrd %> ramdisk_size=65536 install=<%=@host.os.medium_uri(@host)%> autoyast=<%= foreman_url('provision') %> dhcptimeout=10 textmode=1
