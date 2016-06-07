@@ -17,7 +17,7 @@ description: this will configure your interfaces, it configures your primary int
 <% end -%>
 
 <% end -%>
-<% if !iface_prov.nil? -%>
+<% if iface_prov -%>
 <% ifaces.push(iface_prov) -%>
 <% end -%>
 
