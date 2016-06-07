@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<%#
+kind: provision
+name: AutoYaST SLES default
+oses:
+- SLES 11
+- SLES 12
+%>
+<!--
+# @host:                        <%= @host %>
+# IPs:                          <% @host.interfaces.each do |i| %> key is <%= i.ip %> <% end %>
+# @host.operatingsystem.name:   <%= @host.operatingsystem.name %>
+# @host.operatingsystem.family: <%= @host.operatingsystem.family %>
+# @host.hostgroup:              <%= @host.hostgroup %>
+# @host.location:               <%= @host.location %>
+# @provisioning_type:           <%= @provisioning_type %>
+# @temlpate_name:               <%= @template_name %>
+# @rhsm_organization_label:     <%= @host.rhsm_organization_label %>
+# @host.params[]:               <% @host.params.each do |i| %><%= i %>, <% end %>
+# @dynamic:                     <%= @dynamic %>
+#       true if the parition table being used is a %pre script (has #Dynamic as the first line of the table)
+#==============================
+# Generated templates
+# PXELinux:     <%= foreman_url("PXELinux") %>
+# iPXE:         <%= foreman_url("iPXE") %>
+# provision:    <%= foreman_url("provision") %>
+# finish:       <%= foreman_url("finish") %>
+# user_data:    <%= foreman_url("user_data") %>
+# built:        <%= foreman_url %> (URL for foreman to learn built is done)
+# medium_uri:   <%= @host.os.medium_uri(@host) %>
+#==============================
+-->
+<%
+  # safemode renderer does not support unary negation
+  os_major = @host.operatingsystem.major.to_i
+  os_minor = @host.operatingsystem.minor.to_i
+  pm_set = @host.puppetmaster.empty? ? false : true
+  puppet_enabled = pm_set || @host.params['force-puppet'] && @host.params['force-puppet'] == 'true'
+  sles_minor_string = (os_minor == 0) ? '' : "_SP#{os_minor}"
+  # if it is VirtualMachine, we power it off and run script to remove virtual interface used for provisionig
+  hg = @host.hostgroup.to_s
+  hg["/VM"] || hg["/vm"] ? vm = true : vm = false
+%>
+<!DOCTYPE profile>
+<profile xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+<!--      <final_reboot config:type="boolean">true</final_reboot> -->
+      <final_halt config:type="boolean">true</final_halt>
+    </mode>
+  </general>
+  <kdump>
+    <add_crash_kernel config:type="boolean">true</add_crash_kernel>
+    <crash_kernel>128M-:64M</crash_kernel>
+  </kdump>
+  <bootloader>
+    <loader_type>grub</loader_type>
+    <sections config:type="list">
+    <append>audit=1</append>
+    </sections>
+  </bootloader>
+<!-- # === BEGIN Networking setup === -->
+<%= snippet "WN_AutoYaST_networking_setup" %>
+<!-- # === END Networking setup === -->
+  <ntp-client>
+    <configure_dhcp config:type="boolean">false</configure_dhcp>
+    <peers config:type="list">
+      <peer>
+        <address><%= @host.params['ntp-server'] || @host.subnet.gateway %></address>
+        <initial_sync config:type="boolean">true</initial_sync>
+        <options></options>
+        <type>server</type>
+      </peer>
+    </peers>
+    <start_at_boot config:type="boolean">true</start_at_boot>
+    <start_in_chroot config:type="boolean">true</start_in_chroot>
+  </ntp-client>
+  <%= @host.diskLayout %>
+  <report>
+    <errors>
+      <log config:type="boolean">true</log>
+      <show config:type="boolean">true</show>
+      <timeout config:type="integer">0</timeout>
+    </errors>
+    <messages>
+      <log config:type="boolean">true</log>
+      <show config:type="boolean">true</show>
+      <timeout config:type="integer">0</timeout>
+    </messages>
+    <warnings>
+      <log config:type="boolean">true</log>
+      <show config:type="boolean">true</show>
+      <timeout config:type="integer">0</timeout>
+    </warnings>
+    <yesno_messages>
+      <log config:type="boolean">true</log>
+      <show config:type="boolean">true</show>
+      <timeout config:type="integer">0</timeout>
+    </yesno_messages>
+  </report>
+  <runlevel>
+    <default>3</default>
+    <services config:type="list">
+      <service>
+        <service_name>sshd</service_name>
+        <service_status>enable</service_status>
+      </service>
+      <service>
+        <service_name>ntp</service_name>
+        <service_status>enable</service_status>
+      </service>
+      <service>
+        <service_name>smartd</service_name>
+        <service_status>disable</service_status>
+      </service>
+      <service>
+        <service_name>SuSEfirewall2_init</service_name>
+        <service_status>disable</service_status>
+      </service>
+      <service>
+        <service_name>SuSEfirewall2_setup</service_name>
+        <service_status>disable</service_status>
+      </service>
+    </services>
+  </runlevel>
+  <software>
+    <patterns config:type="list">
+      <pattern>Minimal</pattern>
+      <pattern>base</pattern>
+      <pattern>documentation</pattern>
+    </patterns>
+    <packages config:type="list">
+      <package>smt-client</package>
+      <package>less</package>
+      <package>lsb-release</package>
+      <package>openssh</package>
+      <package>vim</package>
+      <package>audit</package>
+      <package>audit-audispd-plugins</package>
+      <package>mc</package>
+      <package>mc-lang</package>
+      <package>seccheck</package>
+      <package>sysstat</package>
+      <package>nagios-plugins</package>
+<% if puppet_enabled -%>
+<!--      <package>rubygem-puppet</package> -->
+<% end -%>
+    </packages>
+    <remove-packages config:type="list">
+      <package>Mesa</package>
+      <package>libasound2</package>
+      <package>libdrm</package>
+      <package>libmysqlclient_r15</package>
+      <package>libqt4</package>
+      <package>libqt4-qt3support</package>
+      <package>libqt4-sql</package>
+      <package>libqt4-sql-mysql</package>
+      <package>libqt4-sql-sqlite</package>
+      <package>libqt4-x11</package>
+      <package>portmap</package>
+      <package>rsyslog</package>
+      <package>sendmail</package>
+      <package>yast2-qt</package>
+      <package>yast2-qt-pkg</package>
+      <package>command-not-found</package>
+	  <package>yast2-irda</package>
+	  <package>cups-client</package>
+	  <package>yast2-squid</package>
+	  <package>yast2-fingerprint-reader</package>
+	  <package>yast2-nis-server</package>
+	  <package>ppp</package>
+	  <package>lukemftp</package>
+	  <package>yast2-dhcp-server</package>
+	  <package>inst-source-utils</package>
+	  <package>yast2-slp-server</package>
+	  <package>yast2-http-server</package>
+	  <package>rsh</package>
+	  <package>openslp-server</package>
+	  <package>providers</package>
+	  <package>zis-ofs-tools</package>
+	  <package>yast2-kerberos-server</package>
+	  <package>joe</package>
+	  <package>pptp</package>
+	  <package>cdrkit-cdrtools-compat</package>
+	  <package>yast2-addon-creator</package>
+	  <package>freetype2</package>
+	  <package>openct</package>
+	  <package>gnome-icon-theme</package>
+	  <package>opie</package>
+	  <package>suspend</package>
+	  <package>yast2-isci-server</package>
+	  <package>yast2-ftp-server</package>
+	  <package>wireless-tools</package>
+    </remove-packages>
+  </software>
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <encrypted config:type="boolean">true</encrypted>
+      <fullname>root</fullname>
+      <gid>0</gid>
+      <home>/root</home>
+      <shell>/bin/bash</shell>
+      <uid>0</uid>
+      <user_password><%= root_pass %></user_password>
+    </user>
+  </users>
+  <scripts>
+<!--
+    <chroot-scripts config:type="list">
+      <script>
+        <filename>cp-resolv.sh</filename>
+        <chrooted config:type="boolean">false</chrooted>
+        <interpreter>shell</interpreter>
+        <notification>Copying resolv.conf into chroot ...</notification>
+        <source><![CDATA[
+cat /etc/resolv.conf >> /mnt/root/resolv.conf
+]]>
+        </source>
+      </script>
+      <script>
+        <filename>update-pkgs.sh</filename>
+        <chrooted config:type="boolean">true</chrooted>
+        <interpreter>shell</interpreter>
+        <notification>Update packages part 1/2 ...</notification>
+        <source><![CDATA[
+(
+date
+netconfig update -v
+cat /root/resolv.conf >> /etc/resolv.conf
+) 2>&1 | tee -a /var/log/postinstall_chroot.log
+]]>
+        </source>
+      </script>
+    </chroot-scripts>
+-->
+    <init-scripts config:type="list">
+      <script>
+        <filename>foreman.sh</filename>
+        <network_needed config:type="boolean">true</network_needed>
+        <feedback config:type="boolean">true</feedback>
+        <feedback_type>message</feedback_type>
+        <interpreter>shell</interpreter>
+        <notification>Integrating with SMT and Katello / Puppet ...</notification>
+        <source><![CDATA[
+exec < /dev/tty2 > /dev/tty2 2>&1
+# changing to VT 2 so that we can see whats going on....
+/usr/bin/chvt 2
+(
+set -x
+date
+/bin/hostname <%= @host.name %>
+
+# CIS 2.6 - /var/tmp
+echo "/tmp                    /var/tmp                none    bind            0 0" >> /etc/fstab
+# CIS 2.14 - /dev/shm
+echo "tmpfs                   /dev/shm                tmpfs   defaults,nodev,nosuid,noexec        0 0" >> /etc/fstab
+mount /var/tmp
+
+# === snippet - WN_AutoYaST_SMT_registration ===
+<%= snippet "WN_AutoYaST_SMT_registration" %>
+/usr/bin/zypper lr
+/usr/bin/zypper -n --no-gpg-checks --gpg-auto-import-keys update --auto-agree-with-licenses
+
+date
+<% if vm -%>
+# === Install vmware-tools in case of VM ===
+/usr/bin/zypper -n --no-gpg-checks --gpg-auto-import-keys install --force --force-resolution vmware-tools-esx-nox
+<% end -%>
+
+date
+# === Puppet & MCollective setup ===
+<% if puppet_enabled %>
+<%= snippet "WN_puppet_mco_setup" %>
+<% end -%>
+
+date
+# === Custom postinstallation script ===
+# This is hardcoded here and it is meant to be a wrapper for anything needed to be done after deployment
+<%= snippet "WN_external_postinstall" %>
+
+# === enable audit in grub - workaround  ===
+sed -i -r "s/^(\s*kernel.*)$/\1 audit=1/g" /boot/grub/menu.lst
+
+# this run also configures/hardens the server
+<% if puppet_enabled %>
+/usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
+<% end -%>
+
+date
+<% if @provisioning_type == nil || @provisioning_type == 'host' -%>
+# Inform the build system that we are done. We have to shut down all interfaces except for provision one, because of proxy is accessible only in provisioning network.
+sed -i 's/nameserver\ <%= @host.subnet.dns_primary %>//g' /etc/resolv.conf
+sed -i 's/nameserver\ <%= @host.subnet.dns_secondary %>//g' /etc/resolv.conf
+cat /etc/resolv.conf
+
+echo "Informing Foreman that we are built"
+/usr/bin/curl -o /dev/null -k '<%= foreman_url %>'
+
+# remove the provisioning iface information from the system
+<% @host.interfaces.each do |i| -%>
+<% if i.provision -%>
+real_prov=`ip -o link | grep <%= i.mac %> | awk '{print $2;}' | sed s/://`
+mac_prov="<%= i.mac %>"
+<% end -%>
+<% end -%>
+
+sed -r "s/(STARTMODE=).*/\1\'off\'/g" /etc/sysconfig/network/ifcfg-${real_prov}
+ifdown ${real_prov}
+# restore resolv.conf
+rm -f /etc/resolv.conf
+/sbin/netconfig update -v
+date
+<% if vm -%>
+# prov iface will be also deleted from VM itself and from foreman (right now manually, later on via script hookend to foreman)
+rm -f /etc/sysconfig/network/ifcfg-${real_prov}
+sed -i "s/SUBSYSTEM.*${mac_prov}.*/# Provisioning iface with MAC ${mac_prov} removed by Katello postinstall script/" /etc/udev/rules.d/70-persistent-net.rules
+<% end -%>
+
+# run puppet agent once more after build finished to be able to browse facts from Katello web UI
+<% if puppet_enabled %>
+[ $( rpm -qa | grep -c mcollective ) -gt 0 ] && /usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
+<% end -%>
+
+<% end -%>
+
+
+) 2>&1 | tee -a /var/log/postinstall_os.log
+]]>
+        </source>
+      </script>
+    </init-scripts>
+  </scripts>
+  <keyboard>
+    <keymap>english-us</keymap>
+  </keyboard>
+  <language>
+    <language>en_US</language>
+    <languages></languages>
+  </language>
+  <timezone>
+    <hwclock>UTC</hwclock>
+    <timezone><%= @host.params['time-zone'] || 'Etc/UTC' %></timezone>
+  </timezone>
+  <add-on>
+    <add_on_products config:type="list">
+<% if puppet_enabled -%>
+<!--
+      <listentry>
+        <media_url><![CDATA[http://download.opensuse.org/repositories/systemsmanagement:/puppet/SLE_<%= os_major %><%= sles_minor_string %>/]]></media_url>
+        <name>systemsmanagement_puppet</name>
+        <product>systemsmanagement_puppet</product>
+        <product_dir>/</product_dir>
+        <signature-handling>
+          <accept_non_trusted_gpg_key>
+            <all config:type="boolean">false</all>
+            <keys config:type="list">
+              <keyid>2ABFA143A0E46E11</keyid>
+            </keys>
+          </accept_non_trusted_gpg_key>
+          <import_gpg_key>
+            <all config:type="boolean">false</all>
+            <keys config:type="list">
+              <keyid>2ABFA143A0E46E11</keyid>
+            </keys>
+          </import_gpg_key>
+        </signature-handling>
+      </listentry>
+-->
+<% if os_major < 12 -%>
+<!--
+      <listentry>
+        <media_url><![CDATA[http://download.opensuse.org/repositories/devel:languages:ruby:backports/SLE_<%= os_major %><%= sles_minor_string %>/]]></media_url>
+        <name>devel_languages_ruby_backports</name>
+        <product>devel_languages_ruby_backports</product>
+        <product_dir>/</product_dir>
+        <signature-handling>
+          <accept_non_trusted_gpg_key>
+            <all config:type="boolean">false</all>
+            <keys config:type="list">
+              <keyid>9AF0C9A20E9AF123</keyid>
+            </keys>
+          </accept_non_trusted_gpg_key>
+          <import_gpg_key>
+            <all config:type="boolean">false</all>
+            <keys config:type="list">
+              <keyid>9AF0C9A20E9AF123</keyid>
+            </keys>
+          </import_gpg_key>
+        </signature-handling>
+      </listentry>
+      <listentry>
+-->
+<!-- you have to update the next line with the actual URL of your SDK -->
+<!--
+        <media_url>http://<your_server_here>/iso/suse/SDK/<%= os_major %>.<%= os_minor %>/<%= @host.architecture %>/</media_url>
+        <product>SuSE-Linux-SDK</product>
+        <product_dir>/</product_dir>
+        <name>SuSE-Linux-SDK</name>
+      </listentry>
+-->
+<% end -%>
+<% end -%>
+    </add_on_products>
+  </add-on>
+</profile>
