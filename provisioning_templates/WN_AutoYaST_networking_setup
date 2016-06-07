@@ -1,0 +1,83 @@
+<%#
+kind: snippet
+name: kickstart_networking_setup
+description: this will configure your interfaces, it configures your primary interface as well as other configured NICs.
+%>
+<% ifaces = [] -%>
+<% iface_prov = nil -%>
+<% i = 0 -%>
+<% @host.interfaces.each do |iface| -%>
+
+<% if iface.primary -%>
+<% ifaces.insert(0, iface) -%>
+<% elsif iface.provision -%>
+<% iface_prov = iface -%>
+<% else -%>
+<% ifaces.push(iface) -%>
+<% end -%>
+
+<% end -%>
+<% if !iface_prov.nil? -%>
+<% ifaces.push(iface_prov) -%>
+<% end -%>
+
+  <net-udev config:type="list">
+<% i = 0 -%>
+<% ifaces.each do |ayiface| -%>
+    <rule>
+      <name>eth<%= i %></name>
+      <rule>ATTR{address}</rule>
+      <value><%= ayiface.mac %></value>
+    </rule>
+<% i = i + 1 -%>
+<% end -%>
+  </net-udev>
+
+  <networking>
+    <dns>
+      <hostname><%= @host.name %></hostname>
+      <resolv_conf_policy>auto</resolv_conf_policy>
+      <nameservers config:type="list">
+        <nameserver><%= @host.subnet.dns_primary %></nameserver>
+        <nameserver><%= @host.subnet.dns_secondary %></nameserver>
+      </nameservers>
+<% if @host.domain -%>
+<!--      <domain><%= @host.domain %></domain> -->
+      <searchlist config:type="list">
+        <search><%= @host.domain %></search>
+      </searchlist>
+<% end -%>
+    </dns>
+
+    <routing>
+      <ip_forward config:type="boolean">false</ip_forward>
+      <routes config:type="list">
+        <route>
+          <destination>default</destination>
+          <device>-</device>
+          <netmask>-</netmask>
+          <gateway><%= @host.subnet.gateway %></gateway>
+        </route>
+      </routes>
+    </routing>
+
+    <interfaces config:type="list">
+<% i = 0 -%>
+<% ifaces.each do |ayiface| -%>
+<% next if ayiface.subnet.nil? -%>
+<% dhcp = ayiface.subnet.dhcp_boot_mode? -%>
+      <interface>
+        <bootproto><%= dhcp ? 'dhcp' : 'static' -%></bootproto>
+        <device>eth<%= i -%></device>
+<% unless dhcp -%>
+        <ipaddr><%= ayiface.ip -%></ipaddr>
+        <netmask><%= ayiface.subnet.mask -%></netmask>
+<% end -%>
+        <startmode>auto</startmode>
+        <usercontrol>no</usercontrol>
+      </interface>
+<% i = i + 1 -%>
+<% end -%>
+    </interfaces>
+    <ipv6 config:type="boolean">false</ipv6>
+  </networking>
