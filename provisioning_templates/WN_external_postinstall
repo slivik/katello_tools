@@ -1,0 +1,18 @@
+<%#
+kind: snippet
+name: WN_external_postinstall
+desc: Run external postinstallation scripts
+oses:
+    - CentOS 6
+    - CentOS 7
+    - RHEL 6
+    - RHEL 7
+    - SLES 11 SP 3
+%><%- if @host.params['kt_run_external_postinstall'] != "no" -%>
+curl http://<%= @host.puppetmaster %>/pub/tools/katello_postinstall.sh > /root/katello_postinstall.sh
+[ -e /root/katello_postinstall.sh ] && chmod +x /root/katello_postinstall.sh
+[ -x /root/katello_postinstall.sh ] && /root/katello_postinstall.sh
+[ -e /root/katello_postinstall.sh ] && rm -f /root/katello_postinstall.sh
+<%- else -%>
+# Not running external postinstall script because global variable kt_run_external_postinstall = <%= @host.params['kt_run_external_postinstall'] %>
+<%- end -%>
