@@ -1,0 +1,37 @@
+<%#
+kind: PXELinux
+name: WN WAIK default PXELinux
+%>
+<% 
+wds_server_ip = case @host.domain.to_s
+   when "kbk.nordlb.local" then "14.111.65.11"
+   when "wniadmp.intranet" then "10.39.23.11"
+   else "WDS_IP_not_recognized_based_on_domain_name-#{@host.domain}"
+end
+-%>
+DEFAULT winPE
+LABEL winPE
+    COM32 pxechn.c32
+    append <%= wds_server_ip %>::\boot\x64\wdsnbp.com -W
+
+#"foreman_url";"<%= foreman_url %>"
+#"fqdn";"<%= @host.name %>"
+#"Win_AccountOU";"<%= @host.params['Win_AccountOU'] %>"
+#"Win_Edition";"<%= @host.params['Win_Edition'] %>"
+#"host_domain";"<%= @host.domain %>"
+#"host_ip";"<%= @host.ip %>"
+#"host_mac";"<%= @host.mac %>"
+#"primary_mac";"<%= @host.primary_interface.mac %>"
+#"primary_ip";"<%= @host.primary_interface.ip %>"
+#"host_subnet_mask";"<%= @host.subnet.mask %>"
+#"host_subnet_gateway";"<%= @host.subnet.gateway %>"
+#"host_subnet_dns_primary";"<%= @host.subnet.dns_primary %>"
+#"host_subnet_dns_secondary";"<%= @host.subnet.dns_secondary %>"
+<% @host.interfaces.each do |i| %>#"<%= i.identifier %>_primary";"<%= i.primary %>"
+#"<%= i.identifier %>_provision";"<%= i.provision %>"
+#"<%= i.identifier %>_managed";"<%= i.managed? %>"
+#"<%= i.identifier %>_subnet";"<%= i.subnet %>"
+#"<%= i.identifier %>_mac";"<%= i.mac %>"
+#"<%= i.identifier %>_ip";"<%= i.ip %>"
+#"<%= i.identifier %>_domain";"<%= i.domain %>"
+<% end %>
