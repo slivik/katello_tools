@@ -1,0 +1,41 @@
+/usr/bin/zypper lr
+/usr/bin/zypper --non-interactive install smt-client
+/bin/sed -i'' '1 s/^/#/' /etc/cron.d/novell.com-smt-client
+/bin/echo "*/31 * * * * root /usr/sbin/smt-agent" >> /etc/cron.d/novell.com-smt-client
+for i in `zypper lr | tail +3 | cut -d "|" -f 1`; do zypper rr $i; done
+/bin/sed -i 's/createjob report/createjob report execute reboot/g' /etc/sysconfig/smt-client
+/usr/bin/wget -P /root/ http://<%= @host.params['kt_smt_server'] %>/repo/tools/clientSetup4SMT.sh
+/bin/chmod +x /root/clientSetup4SMT.sh
+
+cat > /root/clientSetup4SMT.exp << 'EOF_EXP_FILE'
+#!/usr/bin/expect -f
+spawn /root/clientSetup4SMT.sh --host <%= @host.params['kt_smt_server'] %> --fingerprint "<%= @host.params['kt_smt_fingerprint'] %>" --yes --regcert http://<%= @host.params['kt_smt_server'] %>/smt.crt
+set done 0
+while {$done == 0} {
+expect {
+"Do you want to reject the key, trust temporarily, or trust always?" { send -- "a\r" }
+"Continuing might be risky. Continue anyway?" { send -- "yes\r" }
+"Continue?" { send -- "yes\r" }
+eof { set done 1 }
+}
+}
+EOF_EXP_FILE
+
+/bin/chmod +x /root/clientSetup4SMT.exp
+/root/clientSetup4SMT.exp
+
+if [ $( /usr/bin/zypper lr | egrep -c "(system|ruby|SDK)" ) -ne 7 ]; then
+    for i in `/usr/bin/zypper lr | egrep "(puppet|ruby)" | cut -d"|" -f2 | sed -e 's/^[ \t]*//'`; do /usr/bin/zypper rr $i; done
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/\$RCE/SLE11-SDK-SP3-Updates/sle-11-x86_64?credentials=NCCcredentials SMT-http_denlb9010is146p_kbk_nordlb_local:SLE11-SDK-SP3-Updates
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/\$RCE/SLE11-SDK-SP3-Pool/sle-11-x86_64?credentials=NCCcredentials SMT-http_denlb9010is146p_kbk_nordlb_local:SLE11-SDK-SP3-Pool
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-devel_languages_ruby sles11-sp3-devel_languages_ruby
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-devel_languages_ruby_extensions sles11-sp3-devel_languages_ruby_extensions
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-devel_languages_ruby_backports sles11-sp3-devel_languages_ruby_backports
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-systemsmanagement_puppet_devel sles11-sp3-systemsmanagement_puppet_devel
+    /usr/bin/zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-systemsmanagement_puppet_sync sles11-sp3-systemsmanagement_puppet_sync
+    #expect -c 'spawn zypper --gpg-auto-import-keys ref ; expect "Continuing might be risky. Continue anyway?" ; send -- "yes\r"  ; expect eof'
+    /usr/bin/zypper --gpg-auto-import-keys ref
+fi
+
+[ $( zypper lr | egrep -c -i wn-custom ) -eq 0 ] && zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-wn-custom-repo sles11-sp3-wn-custom-repo
+[ $( zypper lr | egrep -c -i wn-nohp-exap ) -eq 0 ] && zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-x86_64-wn-nohp-exap sles11-x86_64-wn-nohp-exap
