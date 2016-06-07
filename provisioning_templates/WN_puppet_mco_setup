@@ -1,0 +1,63 @@
+<%#
+kind: snippet
+desc: Puppet & MCollective setup
+oses:
+    - CentOS 6
+    - CentOS 7
+    - RHEL 6
+    - RHEL 7
+    - SLES 11 SP 3
+%>
+<% if @host.operatingsystem.family == 'Suse' -%>
+<% mco_shellcmd_path = '/usr/lib64/mcollective/mcollective/agent/shellcmd.ddl' %>
+/usr/bin/zypper -n --no-gpg-checks --gpg-auto-import-keys remove --force-resolution puppet facter
+/usr/bin/zypper -n --no-gpg-checks --gpg-auto-import-keys install --force --force-resolution ruby1.8-rubygem-ruby-shadow-2.4.1 rubygem-puppet rubygems mcollective mcollective-nettest-agent mcollective-package-agent mcollective-puppet-agent mcollective-service-agent mcollective-shellcmd-agent
+/usr/bin/zypper addlock ruby1.8-rubygem-ruby-shadow
+<% else -%>
+<% mco_shellcmd_path = '/usr/libexec/mcollective/mcollective/agent/shellcmd.ddl' %>
+yum -t -y -e 0 install puppet rubygem-net-ping mcollective mcollective-audit-logfile mcollective-shellcmd-agent mcollective-sysctl-data mcollective-service-agent mcollective-package-agent mcollective-puppet-agent mcollective-filemgr-agent mcollective-nettest-agent mcollective-facter-facts
+<% end -%>
+
+if [ $( rpm -qa | grep -c mcollective ) -gt 0 ]; then
+
+echo "Configuring puppet"
+cat > /etc/puppet/puppet.conf << EOF
+<%= snippet 'WN_puppet.conf' %>
+EOF
+
+mkdir -p /etc/facter/facts.d
+ln -s /etc/mcollective/facts.yaml /etc/facter/facts.d/facts.yaml 2>&1
+cat >> /etc/mcollective/facts.yaml << EOF
+<%= snippet 'WN_mcollective_facts.yaml' %>
+EOF
+
+## puppet is launched by cron
+/sbin/chkconfig puppet off
+/usr/bin/puppet agent -t --noop
+sync
+
+echo "Configuring MCollective"
+cat > /etc/mcollective/server.cfg << EOF
+<%= snippet 'WN_mcollective_server.cfg' %>
+EOF
+chmod 600 /etc/mcollective/server.cfg*
+
+cat > /usr/local/sbin/facter_to_yaml.rb << EOF
+<%= snippet 'WN_facter_to_yaml.rb' %>
+EOF
+chmod 700 /usr/local/sbin/facter_to_yaml.rb
+
+echo "*/15 * * * * root [ /usr/local/sbin/facter_to_yaml.rb ] && /usr/local/sbin/facter_to_yaml.rb" > /etc/cron.d/facter_to_yaml
+
+if [ -e "<%= mco_shellcmd_path %>" ]; then
+ cp -p <%= mco_shellcmd_path %> <%= mco_shellcmd_path %>.orig
+ sed -i "s|:maxlength\ =>\ 60|:maxlength\ =>\ 180|" <%= mco_shellcmd_path %>
+fi
+
+
+sed -i -r 's/environment:.*//' /etc/mcollective/facts.yaml
+/sbin/chkconfig mcollective on
+/usr/local/sbin/facter_to_yaml.rb
+sync
+fi
+
