@@ -81,7 +81,7 @@ def main():
 	
 	# get list of system in specified organization
 	#data = json.loads( requests.get( katello['test_uri'], verify=False ).content )
-	systems_list = get_data('/organizations/' + org_id + '/systems')
+	systems_list = get_data('/organizations/' + org_id + '/systems?per_page=100000')
 
 	#data = json.loads( requests.get( katello['uri'] + '/systems/' + 'd8fd7008-3e5d-4de0-93b0-93d71e4fac46' + '/errata', auth=(katello['user'], katello['pass']), verify=False ).content )
 	#systems_list[0]['errata_list'] = data['results']
@@ -99,6 +99,7 @@ def main():
 
 			# add errata information to the global systems_list
 			systems_list[i]['errata_list'] = get_data( '/systems/' + sys['uuid'] + '/errata')
+			print i, '\t ' + str(sys['katello_id']) + '\t ' + sys['uuid'] + '\t ' + sys['name']
 			print i, ' ' + sys['uuid'] + ' ' + sys['name']
 
 			# extract only needed information from global systems_list defined by csv_content
