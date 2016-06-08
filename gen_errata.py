@@ -93,14 +93,14 @@ def main():
 	with open(output_file, 'a') as csv_file:
 		writer = csv.writer(csv_file, delimiter=';', quoting=csv.QUOTE_ALL)
 		writer.writerow(csv_head)
-	
+
+		print '#\tkatello_id\tuuid\t\t\t\t\tname'	
 		# go through all systems
 		for i,sys in enumerate(systems_list):
 
 			# add errata information to the global systems_list
 			systems_list[i]['errata_list'] = get_data( '/systems/' + sys['uuid'] + '/errata')
 			print i, '\t ' + str(sys['katello_id']) + '\t ' + sys['uuid'] + '\t ' + sys['name']
-			print i, ' ' + sys['uuid'] + ' ' + sys['name']
 
 			# extract only needed information from global systems_list defined by csv_content
 			#for system in systems_list:
