@@ -2,7 +2,7 @@
 /usr/bin/zypper --non-interactive install smt-client
 /bin/sed -i'' '1 s/^/#/' /etc/cron.d/novell.com-smt-client
 /bin/echo "*/31 * * * * root /usr/sbin/smt-agent" >> /etc/cron.d/novell.com-smt-client
-for i in `zypper lr | tail +3 | cut -d "|" -f 1`; do zypper rr $i; done
+for i in `zypper lr | tail +3 | cut -d "|" -f 2`; do zypper rr $i; done
 /bin/sed -i 's/createjob report/createjob report execute reboot/g' /etc/sysconfig/smt-client
 /usr/bin/wget -P /root/ http://<%= @host.params['kt_smt_server'] %>/repo/tools/clientSetup4SMT.sh
 /bin/chmod +x /root/clientSetup4SMT.sh
