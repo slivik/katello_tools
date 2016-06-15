@@ -39,3 +39,4 @@ fi
 
 [ $( zypper lr | egrep -c -i wn-custom ) -eq 0 ] && zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-wn-custom-repo sles11-sp3-wn-custom-repo
 [ $( zypper lr | egrep -c -i wn-nohp-exap ) -eq 0 ] && zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-x86_64-wn-nohp-exap sles11-x86_64-wn-nohp-exap
+[ $( zypper lr | egrep -c -i vmware ) -eq 0 ] && zypper ar -f http://<%= @host.params['kt_smt_server'] %>/repo/RPMMD/sles11-sp3-vmware-tools-51u2 sles11-sp3-vmware-tools-51u2
