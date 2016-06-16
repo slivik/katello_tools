@@ -39,7 +39,14 @@ oses:
   # if it is VirtualMachine, we power it off and run script to remove virtual interface used for provisionig
   hg = @host.hostgroup.to_s
   hg["/VM"] || hg["/vm"] ? vm = true : vm = false
-%>
+  if os_major >= 7
+    pkgs_inst = "bash-completion"
+    var_vm_tools = "open-vm-tools"
+  else
+    pkgs_inst = ""
+    var_vm_tools = "vmware-tools-esx-nox"
+  end
+-%>
 
 text
 install
@@ -67,7 +74,7 @@ firewall --disabled
 authconfig --useshadow --passalgo=sha256 --kickstart
 timezone --utc <%= @host.params['time-zone'] || 'UTC' %>
 
-bootloader --location=mbr --append="audit=1" <%= grub_pass %>
+bootloader --location=mbr --append="net.ifnames=0 biosdevname=0 audit=1" <%= grub_pass %>
 
 <% if @dynamic -%>
 %include /tmp/diskpart.cfg
@@ -102,7 +109,8 @@ man
 man-pages
 yum
 ntp
-authconfig 
+authconfig
+<%= pkgs_inst %>
 %end
 
 <% if @dynamic -%>
@@ -130,11 +138,12 @@ exec < /dev/tty3 > /dev/tty3
 (
 
 
-
+<%# if os_major < 7 -%>
 # === Network setup ===
 <% if subnet.respond_to?(:dhcp_boot_mode?) -%>
 <%= snippet 'kickstart_networking_setup' %>
 <% end -%>
+<%# end -%>
 
 echo "updating system time"
 /usr/sbin/ntpdate -sub <%= @host.params['ntp-server'] || @host.subnet.gateway %>
@@ -156,7 +165,7 @@ echo "Setting up puppet and mcollective"
 <% if vm -%>
 # === Install vmware-tools in case of VM ===
 echo "Installing vmware-tools"
-yum -t -y -e 0 install vmware-tools-esx-nox
+yum -t -y -e 0 install <%= var_vm_tools %>
 <% end -%>
 
 echo "Modifying fstab - CIS 4.3.22 - /var/tmp"
@@ -179,7 +188,6 @@ echo "Running environment/customer specific postinstallation script"
 /usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
 <% end -%>
 
-
 <% if @provisioning_type == nil || @provisioning_type == 'host' -%>
 # Inform the build system that we are done. We have to shut down all interfaces except for provision one, because of proxy is accessible only in provisioning network.
 ##
@@ -188,7 +196,7 @@ echo "Running environment/customer specific postinstallation script"
 real_prov=`ip -o link | grep <%= i.mac %> | awk '{print $2;}' | sed s/://`
 <% end -%>
 <% end -%>
-for i in `ifconfig -a | sed 's/[ \t].*//;/^\(lo\|\)$/d'`; do ifconfig $i down; done
+for i in `ifconfig -a | sed 's/[: \t].*//;/^\(lo\|\)$/d'`; do ifconfig $i down; done
 ifconfig $real_prov up
 ##
 echo "Informing Foreman that we are built"
@@ -198,7 +206,9 @@ wget -q -O /dev/null --no-check-certificate <%= foreman_url %>
 # this run also configures/hardens the server
 <% if puppet_enabled %>
 ifconfig $real_prov down
-for i in `ifconfig -a | sed 's/[ \t].*//;/^\(lo\|\)$/d' | grep -v $real_prov`; do /etc/sysconfig/network-scripts/ifup $i; done
+for i in `ifconfig -a | sed 's/[: \t].*//;/^\(lo\|\)$/d' | grep -v $real_prov`; do /etc/sysconfig/network-scripts/ifup $i; done
+[ "x`ip r | grep default | cut -f3 -d" "`" != "x<%= @host.subnet.gateway -%>" ] && ip route add default via <%= @host.subnet.gateway %>
+echo "nameserver <%= @host.subnet.dns_primary -%>" > /etc/resolv.conf
 /usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
 <% end -%>
 
