@@ -16,7 +16,7 @@ real=`ip -o link | grep <%= @host.mac -%> | awk '{print $2;}' | sed s/://`
 <% if @host.has_primary_interface? %>
 cat << EOF > /etc/sysconfig/network-scripts/ifcfg-$real
 IPV6INIT=no
-BOOTPROTO="<%= dhcp ? 'dhcp' : 'none' -%>"
+BOOTPROTO="<%= dhcp ? 'dhcp' : 'static' -%>"
 <% unless dhcp -%>
 IPADDR="<%= @host.ip -%>"
 NETMASK="<%= subnet.mask -%>"
@@ -149,6 +149,7 @@ EOF
 echo "NETWORKING_IPV6=no" >> /etc/sysconfig/network
 echo "IPV6INIT=no" >> /etc/sysconfig/network
 echo "GATEWAY=<%= @host.subnet.gateway -%>" >> /etc/sysconfig/network
+echo "DOMAIN=<%= @host.domain -%>" >> /etc/sysconfig/network
 echo "DNS1=<%= @host.subnet.dns_primary -%>" >> /etc/sysconfig/network
 <% if [subnet.dns_secondary].select(&:present?) -%>
 echo "DNS2=<%= @host.subnet.dns_secondary -%>" >> /etc/sysconfig/network
