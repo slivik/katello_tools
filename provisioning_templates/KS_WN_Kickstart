@@ -51,9 +51,6 @@ oses:
 text
 install
 <%= @mediapath %>
-<% if @host.operatingsystem.name == 'CentOS' -%>
-# repo Updates + subs-mngr
-<% end -%>
 lang en_US.UTF-8
 selinux --enforcing
 keyboard us
