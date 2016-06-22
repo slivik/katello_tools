@@ -4,7 +4,7 @@ Auxiliary scripts for Katello 2.x or Red Hat Satellite 6 admins
 #### [gen_errata.py](https://github.com/slivik/katello_tools/blob/master/gen_errata.py)
 - Exports list of erratas for systems in specifed organization into CSV file.
 
-#### [prov_vm.rake](https://github.com/slivik/katello_tools/blob/master/prov_vm.rake)
+#### [prov_vm.rake](https://github.com/slivik/katello_tools/blob/master/hooks/prov_vm.rake)
 
 - Rails task written for Foreman (v1.8) hooks. Can be executed by a shell script placed in ```foreman/hooks/host/managed/before_provision``` and ```/after_build```.
 - Removes provisioning interface from VM deployed by Foreman and assign provisionig feature to primary interface.
