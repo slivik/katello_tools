@@ -13,3 +13,7 @@ Auxiliary scripts for Katello 2.x or Red Hat Satellite 6 admins
 ```bash
 /usr/sbin/foreman-rake "prov_vm:prov_iface[\"${object}\",\"`date +"%Y%m%d%H%M%S"`\",\"add\"]" --trace >> /tmp/hook_rake.log 2>&1 &
 ```
+
+#### [provisioning_templates](https://github.com/slivik/katello_tools/tree/master/provisioning_templates)
+- Temlpates for provision RHEL 6, RHEL 7, Centos 7 and SLES 11 SP3.
+- Works with SafeMode enabled.
