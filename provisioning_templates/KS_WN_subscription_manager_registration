@@ -1,15 +1,42 @@
-<% if @host.params['kt_activation_keys'] %>
+<% if @host.params['kt_activation_keys'] -%>
 # add subscription manager
-yum -t -y -e 0 install subscription-manager
+<% if @host.operatingsystem.name.to_s == "CentOS" -%>
+
+  <% if @host.location.to_s == "GIO IT" -%>
+# Workaround only for CentOSes - extra repo for subs-mgr needed
+cat << EOF > /etc/yum.repos.d/centos-os.repo
+[centos-os]
+baseurl=<%= @host.os.medium_uri(@host) %>
+enabled=1
+EOF
+cat << EOF > /etc/yum.repos.d/centos-subs-mgr.repo
+[centos-subs-mgr]
+baseurl=<%= @host.params['kt_repo_c7subsmgr'] %>
+enabled=1
+EOF
+  <% end -%>
+
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-<%= @host.operatingsystem.major.to_i %>
+<%
+  remove_repo_files='[ $? -eq 0 ] && rm -f /etc/yum.repos.d/*.repo'
+  yum_option_subs_mgr='--nogpgcheck --disablerepo=* --enablerepo=centos-subs-mgr,centos-os'
+else
+  remove_repo_files=''
+  yum_option_subs_mgr=''
+end
+-%>
+
+yum -t -y -e 0 <%= yum_option_subs_mgr %> install subscription-manager
+<%= remove_repo_files %>
 rpm -ivh <%= subscription_manager_configuration_url(@host) %>
 
 echo "Registering the System"
 subscription-manager register --org="<%= @host.rhsm_organization_label %>" --name="<%= @host.name %>" --activationkey="<%= @host.params['kt_activation_keys'] %>"
 
-echo -n "Wainting to be properly subscribed ."
+echo -n "Waiting to be properly subscribed ."
 subsok=0
 while [ $subsok -lt 1 ]; do
-    sleep 1
+    sleep 5
     echo -n "."
     subsok=$( subscription-manager status | grep -c "Overall Status: Current" )
 done
@@ -23,4 +50,4 @@ yum -t -y -e 0 install katello-agent
 chkconfig goferd on
 
 katello-package-upload
-<% end %>
+<% end -%>
