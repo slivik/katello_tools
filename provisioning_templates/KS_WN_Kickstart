@@ -133,21 +133,17 @@ exec < /dev/tty3 > /dev/tty3
 #changing to VT 3 so that we can see whats going on....
 /usr/bin/chvt 3
 (
-
-
-<%# if os_major < 7 -%>
+date
 # === Network setup ===
 <% if subnet.respond_to?(:dhcp_boot_mode?) -%>
 <%= snippet 'kickstart_networking_setup' %>
 <% end -%>
-<%# end -%>
 
 echo "updating system time"
 /usr/sbin/ntpdate -sub <%= @host.params['ntp-server'] || @host.subnet.gateway %>
 /usr/sbin/hwclock --systohc
 
-
-
+date
 # === snippet - KS_WN_subscription_manager_registration ===
 <%= snippet "KS_WN_subscription_manager_registration" %>
 echo "Updating system"
@@ -160,6 +156,7 @@ echo "Setting up puppet and mcollective"
 <% end -%>
 
 <% if vm -%>
+date
 # === Install vmware-tools in case of VM ===
 echo "Installing vmware-tools"
 yum -t -y -e 0 install <%= var_vm_tools %>
@@ -180,8 +177,9 @@ echo "Running environment/customer specific postinstallation script"
 #[ -e /root/katello_postinstall.sh ] && rm -f /root/katello_postinstall.sh
 <%= snippet "WN_external_postinstall" %>
 
-# this run also configures/hardens the server
 <% if puppet_enabled %>
+date
+# this run also configures/hardens the server
 /usr/bin/puppet agent -t --no-noop --logdest /var/log/puppet/puppet.log
 <% end -%>
 
@@ -213,6 +211,7 @@ echo "nameserver <%= @host.subnet.dns_primary -%>" > /etc/resolv.conf
 echo -n "" > /etc/resolv.conf
 
 <% if vm -%>
+date
 ## remove the provisioninf iface information from the system
 ## prov iface will be also deleted from VM itself and from foreman (right now manually, later on via script hookend to foreman)
 #/bin/sed -i "s/^ONBOOT.*/ONBOOT=no/" /etc/sysconfig/network-scripts/ifcfg-${real_prov}
